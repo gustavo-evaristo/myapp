@@ -34,9 +34,12 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
+# Variável para configuração
+config = use_native_modules!
+
+# Target principal (myapp)
 target 'myapp' do
   use_expo_modules!
-  config = use_native_modules!
 
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
@@ -44,36 +47,52 @@ target 'myapp' do
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
+end
 
-  post_install do |installer|
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
-    )
+# Target de desenvolvimento (myapp-dev)
+target 'myapp-dev' do
+  inherit! :search_paths
+  
+  use_expo_modules!
 
-    # This is necessary for Xcode 14, because it signs resource bundles by default
-    # when building for devices.
-    installer.target_installation_results.pod_target_installation_results
-      .each do |pod_name, target_installation_result|
-      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
-        resource_bundle_target.build_configurations.each do |config|
-          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-        end
+  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
+  )
+end
+
+# Consolidando o post_install
+post_install do |installer|
+  # This is necessary for Xcode 14, because it signs resource bundles by default
+  # when building for devices.
+  installer.target_installation_results.pod_target_installation_results
+    .each do |pod_name, target_installation_result|
+    target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
+      resource_bundle_target.build_configurations.each do |config|
+        config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
       end
     end
   end
 
-  post_integrate do |installer|
-    begin
-      expo_patch_react_imports!(installer)
-    rescue => e
-      Pod::UI.warn e
-    end
+  # Execute a função react_native_post_install aqui
+  react_native_post_install(
+    installer,
+    config[:reactNativePath],
+    :mac_catalyst_enabled => false,
+    :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
+  )
+
+  begin
+    expo_patch_react_imports!(installer)
+  rescue => e
+    Pod::UI.warn e
   end
 end
